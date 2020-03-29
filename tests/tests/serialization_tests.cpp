@@ -64,8 +64,8 @@ BOOST_AUTO_TEST_CASE( serialization_json_test )
       op.to = account_id_type(2);
       op.amount = asset(100);
       trx.operations.push_back( op );
-      fc::variant packed(trx);
-      signed_transaction unpacked = packed.as<signed_transaction>();
+      fc::variant packed(trx, GRAPHENE_MAX_NESTED_OBJECTS);
+      signed_transaction unpacked = packed.as<signed_transaction>( GRAPHENE_MAX_NESTED_OBJECTS );
       unpacked.validate();
       BOOST_CHECK( digest(trx) == digest(unpacked) );
    } catch (fc::exception& e) {
@@ -79,42 +79,6 @@ BOOST_AUTO_TEST_CASE( json_tests )
    try {
    auto var = fc::json::variants_from_string( "10.6 " );
    var = fc::json::variants_from_string( "10.5" );
-   } catch ( const fc::exception& e )
-   {
-      edump((e.to_detail_string()));
-      throw;
-   }
-}
-
-BOOST_AUTO_TEST_CASE( extended_private_key_type_test )
-{
-   try
-   {
-     fc::ecc::extended_private_key key = fc::ecc::extended_private_key( fc::ecc::private_key::generate(),
-                                                                       fc::sha256(),
-                                                                       0, 0, 0 );
-      extended_private_key_type type = extended_private_key_type( key );
-      std::string packed = std::string( type );
-      extended_private_key_type unpacked = extended_private_key_type( packed );
-      BOOST_CHECK( type == unpacked );
-   } catch ( const fc::exception& e )
-   {
-      edump((e.to_detail_string()));
-      throw;
-   }
-}
-
-BOOST_AUTO_TEST_CASE( extended_public_key_type_test )
-{
-   try
-   {
-      fc::ecc::extended_public_key key = fc::ecc::extended_public_key( fc::ecc::private_key::generate().get_public_key(),
-                                                                       fc::sha256(),
-                                                                       0, 0, 0 );
-      extended_public_key_type type = extended_public_key_type( key );
-      std::string packed = std::string( type );
-      extended_public_key_type unpacked = extended_public_key_type( packed );
-      BOOST_CHECK( type == unpacked );
    } catch ( const fc::exception& e )
    {
       edump((e.to_detail_string()));

@@ -24,14 +24,17 @@
 #pragma once
 #include <graphene/chain/exceptions.hpp>
 #include <graphene/chain/transaction_evaluation_state.hpp>
-#include <graphene/chain/protocol/operations.hpp>
+#include <graphene/protocol/operations.hpp>
 
 namespace graphene { namespace chain {
 
    class database;
-   struct signed_transaction;
    class generic_evaluator;
    class transaction_evaluation_state;
+   class account_object;
+   class account_statistics_object;
+   class asset_object;
+   class asset_dynamic_data_object;
 
    class generic_evaluator
    {
@@ -93,7 +96,7 @@ namespace graphene { namespace chain {
        *
        * Rather than returning a value, this method fills in core_fee_paid field.
        */
-      void convert_fee();
+      virtual void convert_fee();
 
       object_id_type get_relative_id( object_id_type rel_id )const;
 

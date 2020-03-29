@@ -27,6 +27,8 @@
 #include <graphene/chain/witness_object.hpp>
 #include <graphene/chain/witness_schedule_object.hpp>
 
+#include <fc/popcount.hpp>
+
 namespace graphene { namespace chain {
 
 using boost::container::flat_set;
@@ -34,7 +36,7 @@ using boost::container::flat_set;
 witness_id_type database::get_scheduled_witness( uint32_t slot_num )const
 {
    const dynamic_global_property_object& dpo = get_dynamic_global_properties();
-   const witness_schedule_object& wso = witness_schedule_id_type()(*this);
+   const witness_schedule_object& wso = get_witness_schedule_object();
    uint64_t current_aslot = dpo.current_aslot + slot_num;
    return wso.current_shuffled_witnesses[ current_aslot % wso.current_shuffled_witnesses.size() ];
 }
@@ -77,15 +79,31 @@ uint32_t database::get_slot_at_time(fc::time_point_sec when)const
    return (when - first_slot_time).to_seconds() / block_interval() + 1;
 }
 
+uint32_t database::update_witness_missed_blocks( const signed_block& b )
+{
+   uint32_t missed_blocks = get_slot_at_time( b.timestamp );
+   FC_ASSERT( missed_blocks != 0, "Trying to push double-produced block onto current block?!" );
+   missed_blocks--;
+   const auto& witnesses = witness_schedule_id_type()(*this).current_shuffled_witnesses;
+   if( missed_blocks < witnesses.size() )
+      for( uint32_t i = 0; i < missed_blocks; ++i ) {
+         const auto& witness_missed = get_scheduled_witness( i+1 )(*this);
+         modify( witness_missed, []( witness_object& w ) {
+            w.total_missed++;
+         });
+      }
+   return missed_blocks;
+}
+
 uint32_t database::witness_participation_rate()const
 {
    const dynamic_global_property_object& dpo = get_dynamic_global_properties();
-   return uint64_t(GRAPHENE_100_PERCENT) * dpo.recent_slots_filled.popcount() / 128;
+   return uint64_t(GRAPHENE_100_PERCENT) * fc::popcount(dpo.recent_slots_filled) / 128;
 }
 
 void database::update_witness_schedule()
 {
-   const witness_schedule_object& wso = witness_schedule_id_type()(*this);
+   const witness_schedule_object& wso = get_witness_schedule_object();
    const global_property_object& gpo = get_global_properties();
 
    if( head_block_num() % gpo.active_witnesses.size() == 0 )

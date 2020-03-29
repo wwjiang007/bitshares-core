@@ -18,6 +18,7 @@ VERSION=`cat /etc/bitshares/version`
 #   * $BITSHARESD_PARTIAL_OPERATIONS
 #   * $BITSHARESD_MAX_OPS_PER_ACCOUNT
 #   * $BITSHARESD_ES_NODE_URL
+#   * $BITSHARESD_ES_START_AFTER_BLOCK
 #   * $BITSHARESD_TRUSTED_NODE
 #
 
@@ -70,6 +71,10 @@ if [[ ! -z "$BITSHARESD_ES_NODE_URL" ]]; then
     ARGS+=" --elasticsearch-node-url=${BITSHARESD_ES_NODE_URL}"
 fi
 
+if [[ ! -z "$BITSHARESD_ES_START_AFTER_BLOCK" ]]; then
+    ARGS+=" --elasticsearch-start-es-after-block=${BITSHARESD_ES_START_AFTER_BLOCK}"
+fi
+
 if [[ ! -z "$BITSHARESD_TRUSTED_NODE" ]]; then
     ARGS+=" --trusted-node=${BITSHARESD_TRUSTED_NODE}"
 fi
@@ -81,7 +86,7 @@ ln -f -s /etc/bitshares/config.ini /var/lib/bitshares
 # Plugins need to be provided in a space-separated list, which
 # makes it necessary to write it like this
 if [[ ! -z "$BITSHARESD_PLUGINS" ]]; then
-   $BITSHARESD --data-dir ${HOME} ${ARGS} ${BITSHARESD_ARGS} --plugins "${BITSHARESD_PLUGINS}"
+   exec $BITSHARESD --data-dir ${HOME} ${ARGS} ${BITSHARESD_ARGS} --plugins "${BITSHARESD_PLUGINS}"
 else
-   $BITSHARESD --data-dir ${HOME} ${ARGS} ${BITSHARESD_ARGS}
+   exec $BITSHARESD --data-dir ${HOME} ${ARGS} ${BITSHARESD_ARGS}
 fi

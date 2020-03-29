@@ -24,7 +24,7 @@
 
 #include <graphene/account_history/account_history_plugin.hpp>
 
-#include <graphene/app/impacted.hpp>
+#include <graphene/chain/impacted.hpp>
 
 #include <graphene/chain/account_evaluator.hpp>
 #include <graphene/chain/account_object.hpp>
@@ -34,7 +34,6 @@
 #include <graphene/chain/operation_history_object.hpp>
 #include <graphene/chain/transaction_evaluation_state.hpp>
 
-#include <fc/smart_ref_impl.hpp>
 #include <fc/thread/thread.hpp>
 
 namespace graphene { namespace account_history {
@@ -66,7 +65,7 @@ class account_history_plugin_impl
       flat_set<account_id_type> _tracked_accounts;
       bool _partial_operations = false;
       primary_index< operation_history_index >* _oho_index;
-      uint32_t _max_ops_per_account = -1;
+      uint64_t _max_ops_per_account = -1;
    private:
       /** add one history record, then check and remove the earliest history record */
       void add_account_history( const account_id_type account_id, const operation_history_id_type op_id );
@@ -82,11 +81,23 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
 {
    graphene::chain::database& db = database();
    const vector<optional< operation_history_object > >& hist = db.get_applied_operations();
+   bool is_first = true;
+   auto skip_oho_id = [&is_first,&db,this]() {
+      if( is_first && db._undo_db.enabled() ) // this ensures that the current id is rolled back on undo
+      {
+         db.remove( db.create<operation_history_object>( []( operation_history_object& obj) {} ) );
+         is_first = false;
+      }
+      else
+         _oho_index->use_next_id();
+   };
+
    for( const optional< operation_history_object >& o_op : hist )
    {
       optional<operation_history_object> oho;
 
       auto create_oho = [&]() {
+         is_first = false;
          return optional<operation_history_object>( db.create<operation_history_object>( [&]( operation_history_object& h )
          {
             if( o_op.valid() )
@@ -105,7 +116,7 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
       {
          // Note: the 2nd and 3rd checks above are for better performance, when the db is not clean,
          //       they will break consistency of account_stats.total_ops and removed_ops and most_recent_op
-         _oho_index->use_next_id();
+         skip_oho_id();
          continue;
       }
       else if( !_partial_operations )
@@ -119,10 +130,10 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
       vector<authority> other;
       operation_get_required_authorities( op.op, impacted, impacted, other ); // fee_payer is added here
 
-      if( op.op.which() == operation::tag< account_create_operation >::value )
+      if( op.op.is_type< account_create_operation >() )
          impacted.insert( op.result.get<object_id_type>() );
       else
-         graphene::app::operation_get_impacted_accounts( op.op, impacted );
+         graphene::chain::operation_get_impacted_accounts( op.op, impacted );
 
       for( auto& a : other )
          for( auto& item : a.account_auths )
@@ -178,7 +189,7 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
          }
       }
       if (_partial_operations && ! oho.valid())
-         _oho_index->use_next_id();
+         skip_oho_id();
    }
 }
 
@@ -270,7 +281,7 @@ void account_history_plugin::plugin_set_program_options(
    cli.add_options()
          ("track-account", boost::program_options::value<std::vector<std::string>>()->composing()->multitoken(), "Account ID to track history for (may specify multiple times)")
          ("partial-operations", boost::program_options::value<bool>(), "Keep only those operations in memory that are related to account history tracking")
-         ("max-ops-per-account", boost::program_options::value<uint32_t>(), "Maximum number of operations per account will be kept in memory")
+         ("max-ops-per-account", boost::program_options::value<uint64_t>(), "Maximum number of operations per account will be kept in memory")
          ;
    cfg.add(cli);
 }
@@ -286,7 +297,7 @@ void account_history_plugin::plugin_initialize(const boost::program_options::var
        my->_partial_operations = options["partial-operations"].as<bool>();
    }
    if (options.count("max-ops-per-account")) {
-       my->_max_ops_per_account = options["max-ops-per-account"].as<uint32_t>();
+       my->_max_ops_per_account = options["max-ops-per-account"].as<uint64_t>();
    }
 }
 
